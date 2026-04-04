@@ -34,6 +34,7 @@ import type {
   SidebarView,
   SavedChart,
 } from "@/lib/types";
+import type { PersistedProject } from "@/lib/persistence";
 import { ChartsPanel } from "@/components/charts-panel";
 import { MyChartsPanel } from "@/components/my-charts-panel";
 import { CustomQueryPanel } from "@/components/custom-query-panel";
@@ -45,6 +46,16 @@ type Props = {
   onBack: () => void;
   onRegenerate: (preset: DatePreset, comparePreset: DatePreset, from?: string, to?: string, compareFrom?: string, compareTo?: string) => void;
   isLoading: boolean;
+  // Multi-project
+  projects: PersistedProject[];
+  activeProjectId: string | null;
+  onSwitchProject: (id: string) => void;
+  onAddProject: () => void;
+  // Lifted state
+  savedCharts: SavedChart[];
+  onChartsUpdate: (charts: SavedChart[]) => void;
+  knowledgeBase: string;
+  onKnowledgeUpdate: (kb: string) => void;
 };
 
 function QueryModal({ query, onClose }: { query: InsightQuery | null; onClose: () => void }) {
@@ -75,7 +86,11 @@ function QueryBadge({ queryKey, onOpen }: { queryKey?: string; onOpen: (k: strin
   );
 }
 
-export function DashboardView({ config, plan, payload, onBack, onRegenerate, isLoading }: Props) {
+export function DashboardView({
+  config, plan, payload, onBack, onRegenerate, isLoading,
+  projects, activeProjectId, onSwitchProject, onAddProject,
+  savedCharts, onChartsUpdate, knowledgeBase, onKnowledgeUpdate,
+}: Props) {
   const [activeView, setActiveView] = useState<SidebarView>("dashboard");
   const [queryKey, setQueryKey] = useState<string | null>(null);
   const [preset, setPreset] = useState<DatePreset>("7d");
@@ -91,11 +106,7 @@ export function DashboardView({ config, plan, payload, onBack, onRegenerate, isL
 
   // Refresh knowledge base
   const [refreshing, setRefreshing] = useState(false);
-  const [knowledgeBase, setKnowledgeBase] = useState("");
   const [refreshResult, setRefreshResult] = useState<{ summary?: string; newFindings?: string[] } | null>(null);
-
-  // Saved charts
-  const [savedCharts, setSavedCharts] = useState<SavedChart[]>([]);
 
   const selectedQuery = useMemo(
     () => payload.queries.find((q) => q.key === queryKey) ?? null,
@@ -151,7 +162,7 @@ export function DashboardView({ config, plan, payload, onBack, onRegenerate, isL
       };
       if (data.error) throw new Error(data.error);
       const k = data.knowledge ?? {};
-      setKnowledgeBase(JSON.stringify(k));
+      onKnowledgeUpdate(JSON.stringify(k));
       setRefreshResult({ summary: k.summary, newFindings: k.newFindings });
     } catch {
       setRefreshResult({ summary: "Failed to refresh knowledge base.", newFindings: [] });
@@ -160,15 +171,15 @@ export function DashboardView({ config, plan, payload, onBack, onRegenerate, isL
     }
   }
 
-  // Saved chart management
+  // Saved chart management (lifted to parent for persistence)
   function handleSaveChart(chart: SavedChart) {
-    setSavedCharts((prev) => [chart, ...prev]);
+    onChartsUpdate([chart, ...savedCharts]);
   }
   function handleDeleteChart(id: string) {
-    setSavedCharts((prev) => prev.filter((c) => c.id !== id));
+    onChartsUpdate(savedCharts.filter((c) => c.id !== id));
   }
   function handleRefreshChart(updated: SavedChart) {
-    setSavedCharts((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+    onChartsUpdate(savedCharts.map((c) => (c.id === updated.id ? updated : c)));
   }
 
   // Sidebar nav items
@@ -468,6 +479,28 @@ export function DashboardView({ config, plan, payload, onBack, onRegenerate, isL
             <p className="brand__subtitle">{config.projectName}</p>
           </div>
         </div>
+
+        {/* Add Project */}
+        <button className="sidebar__add-project" onClick={onAddProject}>
+          <span>+</span> Add Project
+        </button>
+
+        {/* Project switcher (if multiple) */}
+        {projects.length > 1 && (
+          <div className="sidebar__projects">
+            <p className="eyebrow" style={{ padding: "0 0.4rem", marginBottom: "0.3rem" }}>Projects</p>
+            {projects.map((proj) => (
+              <button
+                key={proj.id}
+                className={`sidebar__project-item ${proj.id === activeProjectId ? "sidebar__project-item--active" : ""}`}
+                onClick={() => onSwitchProject(proj.id)}
+              >
+                {proj.projectName}
+              </button>
+            ))}
+          </div>
+        )}
+
         <nav className="sidebar__nav">
           {navItems.map((item) => {
             const Icon = item.icon;

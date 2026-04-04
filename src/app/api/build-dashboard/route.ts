@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { runHogQL } from "@/lib/posthog-client";
 import { callLLM } from "@/lib/llm-client";
-import { BUILD_DASHBOARD_SYSTEM_PROMPT } from "@/lib/system-prompts";
+import { AGENT_3_INSIGHTS_PROMPT } from "@/lib/system-prompts";
 import { resolveComparison } from "@/lib/date-range";
 import type { LLMProvider, KPIPlan, DatePreset, DashboardPayload } from "@/lib/types";
 
@@ -66,7 +66,7 @@ Return ONLY valid JSON.`;
       body.llmProvider,
       body.llmApiKey,
       [
-        { role: "system", content: BUILD_DASHBOARD_SYSTEM_PROMPT },
+        { role: "system", content: AGENT_3_INSIGHTS_PROMPT },
         { role: "user", content: userPrompt },
       ],
       true,

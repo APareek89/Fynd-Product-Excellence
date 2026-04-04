@@ -804,6 +804,68 @@ tbody tr:hover { background: rgba(47,102,243,0.04); }
 .loading-card--error .primary-button { margin-top: 1rem; }
 
 /* ============================================================ */
+/*  Sidebar: Add Project + Project switcher                       */
+/* ============================================================ */
+.sidebar__add-project {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  border: 1px dashed rgba(255,255,255,0.15);
+  background: transparent;
+  color: #8690a3;
+  border-radius: 12px;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.sidebar__add-project:hover {
+  border-color: rgba(47,102,243,0.4);
+  color: #fff;
+  background: rgba(47,102,243,0.1);
+}
+.sidebar__add-project span {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.08);
+  display: grid;
+  place-items: center;
+  font-size: 0.9rem;
+}
+
+.sidebar__projects {
+  margin-top: 0.2rem;
+}
+.sidebar__project-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: #7b8797;
+  padding: 0.4rem 0.7rem;
+  border-radius: 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar__project-item:hover { color: #afb7c8; background: rgba(255,255,255,0.03); }
+.sidebar__project-item--active { color: #fff; background: rgba(47,102,243,0.15); }
+
+.loading-card__actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+/* ============================================================ */
 /*  Sidebar badge                                                 */
 /* ============================================================ */
 .sidebar__badge {

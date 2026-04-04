@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { runHogQL } from "@/lib/posthog-client";
 import { callLLM } from "@/lib/llm-client";
+import { CUSTOM_QUERY_SYSTEM_PROMPT } from "@/lib/system-prompts";
 import type { LLMProvider, CustomQueryScope, CustomQueryResult } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -81,7 +82,7 @@ Return ONLY valid JSON.`;
       body.llmProvider,
       body.llmApiKey,
       [
-        { role: "system", content: "You are an expert PostHog HogQL query builder. Generate precise queries to answer analytics questions. Return ONLY valid JSON." },
+        { role: "system", content: CUSTOM_QUERY_SYSTEM_PROMPT },
         { role: "user", content: queryGenPrompt },
       ],
       true,
