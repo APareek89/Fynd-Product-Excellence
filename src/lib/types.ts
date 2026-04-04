@@ -191,5 +191,125 @@ export type DashboardPayload = {
   summaryText: string;
 };
 
+// ---- Sidebar navigation ----
+export type SidebarView =
+  | "dashboard"
+  | "charts"
+  | "my-charts"
+  | "custom";
+
+// ---- Chart builder (Charts panel) ----
+export type ChartType =
+  | "line"
+  | "cumulative-line"
+  | "bar"
+  | "area"
+  | "stacked-bar"
+  | "pie"
+  | "table";
+
+export const CHART_TYPE_LABELS: Record<ChartType, string> = {
+  line: "Line Chart",
+  "cumulative-line": "Cumulative Line",
+  bar: "Bar Chart",
+  area: "Area Chart",
+  "stacked-bar": "Stacked Bar",
+  pie: "Pie / Donut",
+  table: "Table",
+};
+
+export type ChartTimePeriod = "7d" | "30d" | "this-month" | "90d" | "180d" | "custom";
+
+export const CHART_TIME_LABELS: Record<ChartTimePeriod, string> = {
+  "7d": "7 Days",
+  "30d": "30 Days",
+  "this-month": "This Month",
+  "90d": "90 Days",
+  "180d": "180 Days",
+  custom: "Custom",
+};
+
+export type ChartFrequency = "hour" | "day" | "week" | "month";
+
+export const CHART_FREQ_LABELS: Record<ChartFrequency, string> = {
+  hour: "Hourly",
+  day: "Daily",
+  week: "Weekly",
+  month: "Monthly",
+};
+
+export type ChartEventEntry = {
+  id: string;
+  event: string;
+  label: string;
+  mathType: "total" | "unique" | "avg" | "sum" | "min" | "max";
+  mathProperty?: string;
+};
+
+export type ChartPropertyFilter = {
+  id: string;
+  key: string;
+  operator: "exact" | "contains" | "not_contains" | "regex" | "is_set" | "is_not_set";
+  value: string;
+};
+
+export type SavedChart = {
+  id: string;
+  name: string;
+  events: ChartEventEntry[];
+  propertyFilters: ChartPropertyFilter[];
+  breakdownProperty: string;
+  chartType: ChartType;
+  timePeriod: ChartTimePeriod;
+  customFrom?: string;
+  customTo?: string;
+  frequency: ChartFrequency;
+  createdAt: string;
+  data?: ChartDataPayload;
+};
+
+export type ChartDataPoint = {
+  date: string;
+  [key: string]: string | number;
+};
+
+export type ChartDataPayload = {
+  title: string;
+  data: ChartDataPoint[];
+  series: string[];
+  sql: string;
+};
+
+// ---- Custom query (Custom panel) ----
+export type CustomQueryScope =
+  | "funnel"
+  | "product-performance"
+  | "revenue"
+  | "user-behavior"
+  | "engagement"
+  | "retention"
+  | "acquisition";
+
+export const CUSTOM_SCOPE_LABELS: Record<CustomQueryScope, string> = {
+  funnel: "Funnel Analysis",
+  "product-performance": "Product Performance",
+  revenue: "Revenue & Monetization",
+  "user-behavior": "User Behavior & Journeys",
+  engagement: "Engagement & Feature Usage",
+  retention: "Retention & Churn",
+  acquisition: "Acquisition & Growth",
+};
+
+export type CustomQueryResult = {
+  question: string;
+  scope: CustomQueryScope;
+  answer: string;
+  cards: MetricCard[];
+  tables: DataTable[];
+  trends: TrendChart[];
+  callouts: Callout[];
+  queries: InsightQuery[];
+};
+
 // ---- Full app state ----
 export type AppStep = "setup" | "review" | "dashboard";
