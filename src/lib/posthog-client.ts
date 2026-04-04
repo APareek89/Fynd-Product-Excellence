@@ -123,6 +123,105 @@ export async function runHogQL<T extends Record<string, unknown>>(
   );
 }
 
+// ---- Fetch existing dashboards with their insight tiles ----
+export async function fetchExistingDashboards(
+  apiKey: string,
+  projectId: string,
+  posthogHost?: string,
+): Promise<{ id: number; name: string; description: string; tiles: { name: string; query: string; filters: string }[] }[]> {
+  const base = host(posthogHost);
+  try {
+    const res = await fetch(`${base}/api/projects/${projectId}/dashboards/?limit=50`, { headers: headers(apiKey) });
+    if (!res.ok) return [];
+    const data = (await res.json()) as {
+      results: {
+        id: number;
+        name: string;
+        description: string;
+        tiles: {
+          insight?: {
+            name: string;
+            query?: Record<string, unknown>;
+            filters?: Record<string, unknown>;
+          };
+        }[];
+      }[];
+    };
+    return (data.results ?? []).map((d) => ({
+      id: d.id,
+      name: d.name || "(Untitled)",
+      description: d.description || "",
+      tiles: (d.tiles ?? [])
+        .filter((t) => t.insight)
+        .map((t) => ({
+          name: t.insight!.name || "(Unnamed insight)",
+          query: t.insight!.query ? JSON.stringify(t.insight!.query) : "",
+          filters: t.insight!.filters ? JSON.stringify(t.insight!.filters) : "",
+        })),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+// ---- Fetch saved insights (top 100 by last modified) ----
+export async function fetchExistingInsights(
+  apiKey: string,
+  projectId: string,
+  posthogHost?: string,
+): Promise<{ id: number; name: string; description: string; query: string; filters: string }[]> {
+  const base = host(posthogHost);
+  try {
+    const res = await fetch(
+      `${base}/api/projects/${projectId}/insights/?limit=100&order=-last_modified_at`,
+      { headers: headers(apiKey) },
+    );
+    if (!res.ok) return [];
+    const data = (await res.json()) as {
+      results: {
+        id: number;
+        name: string;
+        description: string;
+        query?: Record<string, unknown>;
+        filters?: Record<string, unknown>;
+      }[];
+    };
+    return (data.results ?? []).map((i) => ({
+      id: i.id,
+      name: i.name || "(Unnamed insight)",
+      description: i.description || "",
+      query: i.query ? JSON.stringify(i.query) : "",
+      filters: i.filters ? JSON.stringify(i.filters) : "",
+    }));
+  } catch {
+    return [];
+  }
+}
+
+// ---- Sample recent event data (1 week, for deeper property value understanding) ----
+export async function sampleRecentEventData(
+  apiKey: string,
+  projectId: string,
+  posthogHost?: string,
+): Promise<{ event: string; properties: string }[]> {
+  try {
+    const rows = await runHogQL<{ event: string; properties: string }>(
+      apiKey,
+      projectId,
+      `SELECT event, JSONExtractKeysAndValues(properties, 'String') as properties
+       FROM events
+       WHERE timestamp > now() - INTERVAL 7 DAY
+         AND event NOT LIKE '$%'
+       ORDER BY rand()
+       LIMIT 50`,
+      posthogHost,
+    );
+    return rows;
+  } catch {
+    return [];
+  }
+}
+
 // ---- Sample recent event URLs ----
 export async function sampleEventUrls(
   apiKey: string,

@@ -4,6 +4,9 @@ import {
   fetchPropertyDefinitions,
   sampleEventUrls,
   sampleTransactions,
+  fetchExistingDashboards,
+  fetchExistingInsights,
+  sampleRecentEventData,
 } from "@/lib/posthog-client";
 import { callLLM } from "@/lib/llm-client";
 import { ANALYZE_SYSTEM_PROMPT } from "@/lib/system-prompts";
@@ -32,13 +35,16 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as RequestBody;
 
-    // Step 1: Fetch all PostHog data in parallel
-    const [events, eventProps, personProps, urls, transactions] = await Promise.all([
+    // Step 1: Fetch all PostHog data in parallel (including existing dashboards & insights)
+    const [events, eventProps, personProps, urls, transactions, existingDashboards, existingInsights, sampleData] = await Promise.all([
       fetchEventDefinitions(body.posthogApiKey, body.projectId, body.posthogHost),
       fetchPropertyDefinitions(body.posthogApiKey, body.projectId, body.posthogHost, "event"),
       fetchPropertyDefinitions(body.posthogApiKey, body.projectId, body.posthogHost, "person"),
       sampleEventUrls(body.posthogApiKey, body.projectId, body.posthogHost),
       sampleTransactions(body.posthogApiKey, body.projectId, body.posthogHost),
+      fetchExistingDashboards(body.posthogApiKey, body.projectId, body.posthogHost),
+      fetchExistingInsights(body.posthogApiKey, body.projectId, body.posthogHost),
+      sampleRecentEventData(body.posthogApiKey, body.projectId, body.posthogHost),
     ]);
 
     // Step 2: Build the user prompt with all context
@@ -63,6 +69,51 @@ export async function POST(request: Request) {
     const txSummary = transactions
       .map((t) => `- ${t.event} (count: ${t.count})`)
       .join("\n");
+
+    // Summarize existing dashboards
+    const dashboardsSummary = existingDashboards.length > 0
+      ? existingDashboards.map((d) => {
+          const tilesSummary = d.tiles.slice(0, 10).map((t) => {
+            // Extract key info from query/filters JSON for readability
+            let queryInfo = "";
+            try {
+              const q = JSON.parse(t.query || "{}");
+              const f = JSON.parse(t.filters || "{}");
+              const events = (q.series || f.events || []).map((e: { event?: string; name?: string }) => e.event || e.name).filter(Boolean);
+              const props = (q.properties || f.properties || []).map((p: { key?: string; value?: unknown }) => `${p.key}=${JSON.stringify(p.value)}`);
+              queryInfo = [
+                events.length ? `Events: ${events.join(", ")}` : "",
+                props.length ? `Filters: ${props.join(", ")}` : "",
+              ].filter(Boolean).join(" | ");
+            } catch { /* ignore parse errors */ }
+            return `    - ${t.name}${queryInfo ? ` [${queryInfo}]` : ""}`;
+          }).join("\n");
+          return `  Dashboard: "${d.name}"${d.description ? ` — ${d.description}` : ""}\n${tilesSummary}`;
+        }).join("\n\n")
+      : "No existing dashboards found";
+
+    // Summarize existing saved insights
+    const savedInsightsSummary = existingInsights.length > 0
+      ? existingInsights.slice(0, 50).map((i) => {
+          let queryInfo = "";
+          try {
+            const q = JSON.parse(i.query || "{}");
+            const f = JSON.parse(i.filters || "{}");
+            const events = (q.series || f.events || []).map((e: { event?: string; name?: string }) => e.event || e.name).filter(Boolean);
+            const props = (q.properties || f.properties || []).map((p: { key?: string; value?: unknown }) => `${p.key}=${JSON.stringify(p.value)}`);
+            queryInfo = [
+              events.length ? `Events: ${events.join(", ")}` : "",
+              props.length ? `Filters: ${props.join(", ")}` : "",
+            ].filter(Boolean).join(" | ");
+          } catch { /* ignore */ }
+          return `  - ${i.name}${i.description ? ` (${i.description})` : ""}${queryInfo ? ` [${queryInfo}]` : ""}`;
+        }).join("\n")
+      : "No saved insights found";
+
+    // Summarize sample event data (past 7 days)
+    const sampleDataSummary = sampleData.length > 0
+      ? sampleData.slice(0, 30).map((s) => `  - ${s.event}: ${s.properties}`).join("\n")
+      : "No sample data available";
 
     const insightsSummary = body.specificInsights.length > 0
       ? body.specificInsights.map((i, idx) =>
@@ -99,6 +150,15 @@ ${urlsSummary}
 
 ## Transaction/Payment Events
 ${txSummary || "No payment-related events found"}
+
+## Existing Dashboards in Project (use these as accuracy reference for event + filter combinations)
+${dashboardsSummary}
+
+## Existing Saved Insights (use these as accuracy reference for proven queries)
+${savedInsightsSummary}
+
+## Sample Event Data (past 7 days — real property key-value pairs for deeper understanding)
+${sampleDataSummary}
 
 ## Specific Insights Requested
 ${insightsSummary}
@@ -153,6 +213,9 @@ Now analyze this data and return the KPI plan as JSON.`;
         personPropsCount: personProps.length,
         urlsCount: urls.length,
         transactionsCount: transactions.length,
+        existingDashboardsCount: existingDashboards.length,
+        existingInsightsCount: existingInsights.length,
+        sampleDataRows: sampleData.length,
       },
     });
   } catch (error) {

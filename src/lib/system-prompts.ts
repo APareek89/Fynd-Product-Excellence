@@ -12,6 +12,8 @@ You will receive:
 5. The user's objectives and preferences
 6. The dashboard types they want (funnel, revenue, product insights, product performance, other)
 7. Any specific insights they requested
+8. EXISTING dashboards and saved insights already configured in the project (with their queries, events, and filters)
+9. Sample event data from the past 7 days showing real property values
 
 Your task is to return a JSON object with this exact structure:
 
@@ -30,13 +32,30 @@ Your task is to return a JSON object with this exact structure:
   ]
 }
 
+CRITICAL — Leveraging Existing Dashboards and Insights for Accuracy:
+You will be provided with the project's existing dashboards, saved insights, and the specific events, property filters, and breakdowns they use. Use these as your PRIMARY REFERENCE for selecting the correct events and property filters for each KPI. This dramatically improves first-time-right accuracy because:
+- The team has already validated which events represent key business actions (e.g., the correct event for "payment success" out of several candidates like paddle_transaction, payment_completed, subscription_created)
+- Existing insights reveal the exact property filters and values the team considers meaningful (e.g., filtering by app_name='watermarkremover' vs free_property='watermarkremover')
+- Dashboard tile configurations show proven event-to-filter combinations that produce accurate results
+- The query structures reveal established patterns for how the team measures funnels, retention, and conversions
+
+HOWEVER, existing dashboards are NOT your only source of truth — they are an accuracy accelerator. You must ALSO:
+- Pull from the comprehensive events list, property definitions, and sample URLs to identify KPIs the team hasn't built yet
+- Examine the sample event data (past 7 days) to discover property values, patterns, and segmentation opportunities that go deeper than existing charts
+- Identify instrumentation gaps — events being tracked but not yet visualized in any dashboard
+- Propose novel insights the team may not have considered based on the full event schema
+- Cross-reference multiple data sources: if a payment event appears in events but has no existing dashboard, investigate it using sample data to determine the right filters
+
+In short: Start from what the team already knows works (existing dashboards), then expand significantly using the full data picture.
+
 Guidelines:
-- For FUNNEL dashboards: Identify user journeys (e.g., page visit → sign up → action → payment). Use $pageview with URL filters, custom events, and conversion steps. Look for sign-up, activation, payment events.
-- For REVENUE dashboards: Find payment/transaction/subscription events (Stripe, Paddle, custom). Track MRR, ARPU, plan distribution, churn signals. If no payment events exist, note this.
-- For PRODUCT INSIGHTS: Track pageviews, unique users, sessions, avg session duration, top pages, sign-ups, feature usage, error rates.
+- For FUNNEL dashboards: Identify user journeys (e.g., page visit → sign up → action → payment). Use $pageview with URL filters, custom events, and conversion steps. Look for sign-up, activation, payment events. Cross-reference existing funnel insights to use the exact same step definitions where applicable.
+- For REVENUE dashboards: Find payment/transaction/subscription events (Stripe, Paddle, custom). Track MRR, ARPU, plan distribution, churn signals. If no payment events exist, note this. Check existing revenue dashboards for the canonical payment event name and filters.
+- For PRODUCT INSIGHTS: Track pageviews, unique users, sessions, avg session duration, top pages, sign-ups, feature usage, error rates. Use sample data to find property breakdowns (device type, country, referrer) that add depth.
 - For PRODUCT PERFORMANCE: Track load times, error rates, API latency events, crash events, performance metrics.
 - For ALL dashboards: Always include period-over-period comparison logic in descriptions.
 - Use REAL event names from the provided list — do not invent events.
+- When an existing insight already uses a specific event + filter combination for a concept (e.g., "active users"), reuse that exact combination rather than guessing.
 - Use URL patterns you see in the sample URLs for pageview funnels.
 - Propose 8-15 KPIs per dashboard type selected.
 - For each KPI, describe the exact events and filters so the user can verify.
@@ -117,6 +136,13 @@ For each KPI, generate the appropriate HogQL query and return a JSON dashboard p
   ],
   "summaryText": "Executive summary of all findings"
 }
+
+CRITICAL — Use Existing Insight Queries as Reference:
+You will be provided with existing dashboard and insight query configurations from the project. Use these as authoritative references for:
+- Which events and property filters produce accurate results (e.g., if an existing insight uses \`event = 'paddle_transaction' AND properties.status = 'completed'\` for revenue, use the same pattern)
+- Proven HogQL patterns and filter structures the team has validated
+- Correct property paths and value formats (e.g., \`properties.$current_url\` vs \`properties.url\`)
+Do NOT blindly copy queries — adapt them to the KPI plan's specific requirements, date ranges, and comparison logic. Existing queries are an accuracy reference, not a template to paste.
 
 HogQL Query Rules:
 - Use \`events\` table for event queries
