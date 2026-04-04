@@ -12,6 +12,7 @@ import {
   MessageSquarePlus,
   Database,
   CheckCircle2,
+  Wand2,
 } from "lucide-react";
 import {
   LineChart,
@@ -51,6 +52,7 @@ type Props = {
   activeProjectId: string | null;
   onSwitchProject: (id: string) => void;
   onAddProject: () => void;
+  onEnhance: () => void;
   // Lifted state
   savedCharts: SavedChart[];
   onChartsUpdate: (charts: SavedChart[]) => void;
@@ -88,7 +90,7 @@ function QueryBadge({ queryKey, onOpen }: { queryKey?: string; onOpen: (k: strin
 
 export function DashboardView({
   config, plan, payload, onBack, onRegenerate, isLoading,
-  projects, activeProjectId, onSwitchProject, onAddProject,
+  projects, activeProjectId, onSwitchProject, onAddProject, onEnhance,
   savedCharts, onChartsUpdate, knowledgeBase, onKnowledgeUpdate,
 }: Props) {
   const [activeView, setActiveView] = useState<SidebarView>("dashboard");
@@ -480,10 +482,15 @@ export function DashboardView({
           </div>
         </div>
 
-        {/* Add Project */}
-        <button className="sidebar__add-project" onClick={onAddProject}>
-          <span>+</span> Add Project
-        </button>
+        {/* Add Project + Enhance */}
+        <div className="sidebar__top-actions">
+          <button className="sidebar__add-project" onClick={onAddProject}>
+            <span>+</span> Add Project
+          </button>
+          <button className="sidebar__enhance-btn" onClick={onEnhance}>
+            <Wand2 size={13} /> Enhance
+          </button>
+        </div>
 
         {/* Project switcher (if multiple) */}
         {projects.length > 1 && (

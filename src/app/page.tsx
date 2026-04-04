@@ -37,6 +37,9 @@ export default function Home() {
   const [isBuilding, setIsBuilding] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [loadingMessage, setLoadingMessage] = useState("");
+  // Enhance mode: re-enter setup with existing project context
+  const [enhanceMode, setEnhanceMode] = useState(false);
 
   // Persistence
   const [persisted, setPersisted] = useState<PersistedState>({ projects: [], activeProjectId: null });
@@ -94,49 +97,88 @@ export default function Home() {
     persistState(newState);
   }
 
-  // Step 1 → Step 2: Analyze events with LLM (multi-agent)
+  // Step 1 → Step 2: Analyze (split into 2 API calls to avoid timeout)
   async function handleSetupSubmit(cfg: SetupConfig) {
     setConfig(cfg);
     setIsAnalyzing(true);
     setError("");
+    setEnhanceMode(false);
 
     try {
-      const res = await fetch("/api/analyze", {
+      // Call 1: Agent 1 — Discovery (fetch PostHog data + LLM discovery)
+      setLoadingMessage("Agent 1: Discovering events, properties, and business logic...");
+      const discoverRes = await fetch("/api/analyze-discover", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(cfg),
+        body: JSON.stringify({
+          posthogApiKey: cfg.posthogApiKey,
+          posthogHost: cfg.posthogHost,
+          projectId: cfg.projectId,
+          projectName: cfg.projectName,
+          llmProvider: cfg.llmProvider,
+          llmApiKey: cfg.llmApiKey,
+        }),
       });
-      const data = await safeJsonFetch(res);
+      const discoverData = await safeJsonFetch(discoverRes);
+      if (discoverData.error) throw new Error(discoverData.error);
 
-      if (data.error) throw new Error(data.error);
-      if (!data.plan) throw new Error("No plan returned from analysis");
+      // Call 2: Agent 2 — Architect (design KPIs with L1/L2/L3 depth)
+      setLoadingMessage("Agent 2: Designing KPIs with L1/L2/L3 depth...");
+      const architectRes = await fetch("/api/analyze-architect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          llmProvider: cfg.llmProvider,
+          llmApiKey: cfg.llmApiKey,
+          discoveryContext: discoverData.discoveryContext,
+          dashboardTypes: cfg.dashboardTypes,
+          otherDescription: cfg.otherDescription,
+          objective: cfg.objective,
+          agentRecommendations: cfg.agentRecommendations,
+          specificInsights: cfg.specificInsights,
+        }),
+      });
+      const architectData = await safeJsonFetch(architectRes);
+      if (architectData.error) throw new Error(architectData.error);
+      if (!architectData.plan) throw new Error("No plan returned");
 
-      setPlan(data.plan);
+      setPlan(architectData.plan);
       setStep("review");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Analysis failed");
     } finally {
       setIsAnalyzing(false);
+      setLoadingMessage("");
     }
   }
 
-  // Step 2 → refresh plan with feedback
+  // Step 2 → refresh plan with feedback (single call, Agent 2 only)
   async function handleRefreshPlan(feedback: string) {
     if (!config) return;
     setIsRefreshing(true);
     setError("");
 
     try {
-      const res = await fetch("/api/analyze", {
+      // Re-discover if needed, but for feedback we can skip Agent 1
+      // and just re-run Agent 2 with feedback
+      const res = await fetch("/api/analyze-architect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...config, feedback, previousPlan: plan }),
+        body: JSON.stringify({
+          llmProvider: config.llmProvider,
+          llmApiKey: config.llmApiKey,
+          discoveryContext: "Use the same project context as before. The user is providing feedback on the KPI plan.",
+          dashboardTypes: config.dashboardTypes,
+          otherDescription: config.otherDescription,
+          objective: config.objective,
+          agentRecommendations: config.agentRecommendations,
+          specificInsights: config.specificInsights,
+          feedback,
+        }),
       });
       const data = await safeJsonFetch(res);
-
       if (data.error) throw new Error(data.error);
       if (!data.plan) throw new Error("No plan returned");
-
       setPlan(data.plan);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Refresh failed");
@@ -145,7 +187,7 @@ export default function Home() {
     }
   }
 
-  // Step 2 → Step 3: Build dashboard
+  // Step 2 → Step 3: Build dashboard (split into 2 calls)
   async function handleConfirmPlan(confirmedPlan: KPIPlan) {
     if (!config) return;
     setPlan(confirmedPlan);
@@ -153,64 +195,83 @@ export default function Home() {
     setError("");
 
     try {
-      const res = await fetch("/api/build-dashboard", {
+      // Call 1: Generate queries + execute them
+      setLoadingMessage("Agent 3: Generating HogQL queries and fetching data...");
+      const queryRes = await fetch("/api/build-queries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...config, plan: confirmedPlan, preset: "7d", comparePreset: "7d" }),
+      });
+      const queryData = await safeJsonFetch(queryRes);
+      if (queryData.error) throw new Error(queryData.error);
+
+      // Call 2: Populate dashboard with real results
+      setLoadingMessage("Agent 3: Populating dashboard with real data...");
+      const popRes = await fetch("/api/build-populate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...config,
-          plan: confirmedPlan,
-          preset: "7d",
-          comparePreset: "7d",
+          llmProvider: config.llmProvider,
+          llmApiKey: config.llmApiKey,
+          dashboard: queryData.dashboard,
+          queryResults: queryData.queryResults,
         }),
       });
-      const data = await safeJsonFetch(res);
+      const popData = await safeJsonFetch(popRes);
+      if (popData.error) throw new Error(popData.error);
+      if (!popData.dashboard) throw new Error("No dashboard returned");
 
-      if (data.error) throw new Error(data.error);
-      if (!data.dashboard) throw new Error("No dashboard returned");
-
-      setDashboard(data.dashboard);
+      setDashboard(popData.dashboard);
       setStep("dashboard");
-
-      // Persist to localStorage
-      persistCurrentProject(config, confirmedPlan, data.dashboard);
+      persistCurrentProject(config, confirmedPlan, popData.dashboard);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Build failed");
     } finally {
       setIsBuilding(false);
+      setLoadingMessage("");
     }
   }
 
-  // Dashboard date range change
+  // Dashboard date range change (split into 2 calls)
   async function handleRegenerate(
-    preset: DatePreset,
-    comparePreset: DatePreset,
-    from?: string,
-    to?: string,
-    compareFrom?: string,
-    compareTo?: string,
+    preset: DatePreset, comparePreset: DatePreset,
+    from?: string, to?: string, compareFrom?: string, compareTo?: string,
   ) {
     if (!config || !plan) return;
     setIsBuilding(true);
     setError("");
 
     try {
-      const res = await fetch("/api/build-dashboard", {
+      setLoadingMessage("Regenerating queries...");
+      const queryRes = await fetch("/api/build-queries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...config, plan, preset, comparePreset, from, to, compareFrom, compareTo }),
       });
-      const data = await safeJsonFetch(res);
+      const queryData = await safeJsonFetch(queryRes);
+      if (queryData.error) throw new Error(queryData.error);
 
-      if (data.error) throw new Error(data.error);
-      if (!data.dashboard) throw new Error("No dashboard returned");
+      setLoadingMessage("Populating dashboard...");
+      const popRes = await fetch("/api/build-populate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          llmProvider: config.llmProvider,
+          llmApiKey: config.llmApiKey,
+          dashboard: queryData.dashboard,
+          queryResults: queryData.queryResults,
+        }),
+      });
+      const popData = await safeJsonFetch(popRes);
+      if (popData.error) throw new Error(popData.error);
 
-      setDashboard(data.dashboard);
-      // Persist updated dashboard
-      persistCurrentProject(config, plan, data.dashboard);
+      setDashboard(popData.dashboard);
+      persistCurrentProject(config, plan, popData.dashboard);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Regeneration failed");
     } finally {
       setIsBuilding(false);
+      setLoadingMessage("");
     }
   }
 
@@ -228,7 +289,7 @@ export default function Home() {
     persistState({ ...persisted, activeProjectId: proj.id });
   }
 
-  // Add new project (go to setup)
+  // Add new project (go to setup, blank slate)
   function handleAddProject() {
     setStep("setup");
     setConfig(null);
@@ -237,6 +298,14 @@ export default function Home() {
     setSavedCharts([]);
     setKnowledgeBase("");
     setError("");
+    setEnhanceMode(false);
+  }
+
+  // Enhance current project (go to setup WITH existing config pre-filled)
+  function handleEnhance() {
+    setEnhanceMode(true);
+    setStep("setup");
+    // Keep config, plan, dashboard so setup wizard can pre-fill
   }
 
   // Update saved charts in persistence
@@ -267,19 +336,32 @@ export default function Home() {
     );
   }
 
-  // Loading overlay
+  // Loading overlay with progress
   if (isAnalyzing || isBuilding) {
     return (
       <div className="loading-overlay">
         <div className="loading-card">
           <Loader2 size={32} className="spin" />
           <h2>{isAnalyzing ? "AI Agents analyzing your PostHog data..." : "Building your dashboard..."}</h2>
+          {loadingMessage && <p className="loading-card__step">{loadingMessage}</p>}
           <p className="loading-card__sub">
             {isAnalyzing
-              ? "Agent 1 is discovering events, properties, and business logic. Agent 2 is architecting KPIs with L1/L2/L3 depth."
-              : "Agent 3 is generating HogQL queries, executing against PostHog, and assembling insights with root-cause analysis."}
+              ? "Each agent call takes 15-30 seconds. Total ~60 seconds."
+              : "Generating queries, executing against PostHog, then populating with real data."}
           </p>
-          <p className="loading-card__hint">This may take 30-90 seconds.</p>
+          <div className="loading-card__steps">
+            <div className={`loading-step ${loadingMessage.includes("Agent 1") || loadingMessage.includes("Discovering") ? "loading-step--active" : loadingMessage.includes("Agent 2") || loadingMessage.includes("Architect") || loadingMessage.includes("Designing") ? "loading-step--done" : ""}`}>
+              {isAnalyzing ? "1. Discover" : "1. Generate"}
+            </div>
+            <div className={`loading-step ${loadingMessage.includes("Agent 2") || loadingMessage.includes("Designing") ? "loading-step--active" : loadingMessage.includes("Agent 3") || loadingMessage.includes("Populating") ? "loading-step--done" : ""}`}>
+              {isAnalyzing ? "2. Architect" : "2. Execute"}
+            </div>
+            {!isAnalyzing && (
+              <div className={`loading-step ${loadingMessage.includes("Populating") ? "loading-step--active" : ""}`}>
+                3. Populate
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -313,7 +395,7 @@ export default function Home() {
 
   switch (step) {
     case "setup":
-      return <SetupWizard onSubmit={handleSetupSubmit} />;
+      return <SetupWizard onSubmit={handleSetupSubmit} enhanceConfig={enhanceMode ? config : null} />;
 
     case "review":
       if (!config || !plan) return null;
@@ -342,6 +424,7 @@ export default function Home() {
           activeProjectId={persisted.activeProjectId}
           onSwitchProject={switchProject}
           onAddProject={handleAddProject}
+          onEnhance={handleEnhance}
           savedCharts={savedCharts}
           onChartsUpdate={handleChartsUpdate}
           knowledgeBase={knowledgeBase}

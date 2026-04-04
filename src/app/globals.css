@@ -799,41 +799,93 @@ tbody tr:hover { background: rgba(47,102,243,0.04); }
   box-shadow: var(--shadow);
 }
 .loading-card h2 { font-size: 1.1rem; margin-top: 0.8rem; font-weight: 800; }
+.loading-card__step {
+  margin-top: 0.6rem;
+  padding: 0.4rem 0.7rem;
+  border-radius: 8px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: 0.72rem;
+  font-weight: 700;
+  display: inline-block;
+}
 .loading-card__sub { margin-top: 0.6rem; color: var(--text-muted); font-size: 0.76rem; line-height: 1.5; }
 .loading-card__hint { margin-top: 0.8rem; color: var(--text-soft); font-size: 0.68rem; }
+.loading-card__steps {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+.loading-step {
+  padding: 0.35rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--text-soft);
+}
+.loading-step--active {
+  border-color: rgba(47,102,243,0.4);
+  background: var(--brand-soft);
+  color: var(--brand);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+.loading-step--done {
+  border-color: rgba(31,155,99,0.3);
+  background: rgba(31,155,99,0.08);
+  color: var(--positive);
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
 .loading-card--error .primary-button { margin-top: 1rem; }
 
 /* ============================================================ */
 /*  Sidebar: Add Project + Project switcher                       */
 /* ============================================================ */
-.sidebar__add-project {
+.sidebar__top-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+.sidebar__add-project, .sidebar__enhance-btn {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  width: 100%;
+  gap: 0.4rem;
+  flex: 1;
   border: 1px dashed rgba(255,255,255,0.15);
   background: transparent;
   color: #8690a3;
   border-radius: 12px;
-  padding: 0.55rem 0.7rem;
-  font-size: 0.72rem;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.66rem;
   font-weight: 800;
   cursor: pointer;
   transition: all 0.15s;
+  white-space: nowrap;
 }
-.sidebar__add-project:hover {
+.sidebar__add-project:hover, .sidebar__enhance-btn:hover {
   border-color: rgba(47,102,243,0.4);
   color: #fff;
   background: rgba(47,102,243,0.1);
 }
+.sidebar__enhance-btn {
+  border-style: solid;
+  border-color: rgba(183,156,255,0.25);
+}
+.sidebar__enhance-btn:hover {
+  border-color: rgba(183,156,255,0.5);
+  background: rgba(183,156,255,0.1);
+}
 .sidebar__add-project span {
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
   background: rgba(255,255,255,0.08);
   display: grid;
   place-items: center;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
 }
 
 .sidebar__projects {

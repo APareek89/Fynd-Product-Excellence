@@ -28,6 +28,7 @@ import { DASHBOARD_TYPE_LABELS } from "@/lib/types";
 
 type Props = {
   onSubmit: (config: SetupConfig) => void;
+  enhanceConfig?: SetupConfig | null;
 };
 
 function uid() {
@@ -42,27 +43,31 @@ const EMPTY_INSIGHT: () => SpecificInsight = () => ({
   trendGranularity: "daily" as TrendGranularity,
 });
 
-export function SetupWizard({ onSubmit }: Props) {
-  // API keys
-  const [posthogApiKey, setPosthogApiKey] = useState("");
-  const [posthogHost, setPosthogHost] = useState("https://us.posthog.com");
-  const [llmProvider, setLlmProvider] = useState<LLMProvider>("claude");
-  const [llmApiKey, setLlmApiKey] = useState("");
-  const [additionalKeys, setAdditionalKeys] = useState<AdditionalKey[]>([]);
+export function SetupWizard({ onSubmit, enhanceConfig }: Props) {
+  const ec = enhanceConfig; // shorthand
 
-  // Project selection
-  const [projects, setProjects] = useState<PostHogProject[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState("");
-  const [selectedProjectName, setSelectedProjectName] = useState("");
+  // API keys (pre-fill from enhanceConfig if in enhance mode)
+  const [posthogApiKey, setPosthogApiKey] = useState(ec?.posthogApiKey ?? "");
+  const [posthogHost, setPosthogHost] = useState(ec?.posthogHost ?? "https://us.posthog.com");
+  const [llmProvider, setLlmProvider] = useState<LLMProvider>(ec?.llmProvider ?? "claude");
+  const [llmApiKey, setLlmApiKey] = useState(ec?.llmApiKey ?? "");
+  const [additionalKeys, setAdditionalKeys] = useState<AdditionalKey[]>(ec?.additionalKeys ?? []);
+
+  // Project selection (pre-fill if enhancing)
+  const [projects, setProjects] = useState<PostHogProject[]>(
+    ec ? [{ id: Number(ec.projectId), name: ec.projectName, uuid: "" }] : [],
+  );
+  const [selectedProjectId, setSelectedProjectId] = useState(ec?.projectId ?? "");
+  const [selectedProjectName, setSelectedProjectName] = useState(ec?.projectName ?? "");
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [projectError, setProjectError] = useState("");
-  const [projectsFetched, setProjectsFetched] = useState(false);
+  const [projectsFetched, setProjectsFetched] = useState(!!ec);
 
-  // Dashboard config
-  const [dashboardTypes, setDashboardTypes] = useState<DashboardType[]>([]);
-  const [otherDescription, setOtherDescription] = useState("");
-  const [objective, setObjective] = useState("");
-  const [agentRecommendations, setAgentRecommendations] = useState("");
+  // Dashboard config (pre-fill)
+  const [dashboardTypes, setDashboardTypes] = useState<DashboardType[]>(ec?.dashboardTypes ?? []);
+  const [otherDescription, setOtherDescription] = useState(ec?.otherDescription ?? "");
+  const [objective, setObjective] = useState(ec?.objective ?? "");
+  const [agentRecommendations, setAgentRecommendations] = useState(ec?.agentRecommendations ?? "");
 
   // Specific insights
   const [showInsights, setShowInsights] = useState(false);
@@ -174,9 +179,11 @@ export function SetupWizard({ onSubmit }: Props) {
         <div className="setup-card__header">
           <div className="brand__icon brand__icon--lg">F</div>
           <div>
-            <h1>Fynd &ndash; Growth</h1>
+            <h1>{ec ? "Enhance Dashboard" : "Fynd \u2013 Growth"}</h1>
             <p className="hero-panel__subtitle">
-              AI-powered PostHog dashboard builder. Configure your keys, select insights, and let AI build your dashboard.
+              {ec
+                ? `Enhance your "${ec.projectName}" dashboard. Add new dashboard types, insights, or adjust objectives — your existing dashboard will be preserved.`
+                : "AI-powered PostHog dashboard builder. Configure your keys, select insights, and let AI build your dashboard."}
             </p>
           </div>
         </div>
