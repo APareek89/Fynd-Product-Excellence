@@ -174,7 +174,7 @@ export function SetupWizard({ onSubmit }: Props) {
         <div className="setup-card__header">
           <div className="brand__icon brand__icon--lg">F</div>
           <div>
-            <h1>Fynd &ndash; Product Excellence</h1>
+            <h1>Fynd &ndash; Growth</h1>
             <p className="hero-panel__subtitle">
               AI-powered PostHog dashboard builder. Configure your keys, select insights, and let AI build your dashboard.
             </p>

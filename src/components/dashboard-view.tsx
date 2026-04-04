@@ -116,7 +116,7 @@ export function DashboardView({ config, plan, payload, onBack, onRegenerate, isL
         <div className="brand">
           <div className="brand__icon">F</div>
           <div>
-            <p className="brand__title">Product Excellence</p>
+            <p className="brand__title">Fynd &ndash; Growth</p>
             <p className="brand__subtitle">{config.projectName}</p>
           </div>
         </div>

@@ -17,20 +17,37 @@ function headers(apiKey: string) {
   };
 }
 
-// ---- List projects for an API key (personal API key) ----
+// ---- List projects for an API key ----
+// Handles both personal API keys (/api/projects/) and
+// project-scoped API keys (/api/projects/@current/)
 export async function listProjects(apiKey: string, posthogHost?: string): Promise<PostHogProject[]> {
-  // Try organization-level first, fallback to project-scoped
   const base = host(posthogHost);
 
-  // Project-scoped API keys: try /api/projects/
-  const res = await fetch(`${base}/api/projects/`, { headers: headers(apiKey) });
-  if (!res.ok) {
-    const t = await res.text();
-    throw new Error(`PostHog projects: ${res.status} ${t}`);
+  // First try the list endpoint (works with personal/org API keys)
+  const listRes = await fetch(`${base}/api/projects/`, { headers: headers(apiKey) });
+
+  if (listRes.ok) {
+    const data = (await listRes.json()) as { results?: PostHogProject[] } | PostHogProject[];
+    if (Array.isArray(data)) return data;
+    return data.results ?? [];
   }
-  const data = (await res.json()) as { results?: PostHogProject[] } | PostHogProject[];
-  if (Array.isArray(data)) return data;
-  return data.results ?? [];
+
+  // If 403/401, the key is likely project-scoped — use @current
+  const currentRes = await fetch(`${base}/api/projects/@current/`, { headers: headers(apiKey) });
+
+  if (!currentRes.ok) {
+    const t = await currentRes.text();
+    throw new Error(`PostHog: Could not fetch projects. Verify your API key. (${currentRes.status})`);
+  }
+
+  const project = (await currentRes.json()) as {
+    id: number;
+    name: string;
+    uuid: string;
+    api_token?: string;
+  };
+
+  return [{ id: project.id, name: project.name, uuid: project.uuid }];
 }
 
 // ---- Fetch event definitions (paginated) ----

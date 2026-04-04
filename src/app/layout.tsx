@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Fynd - Product Excellence",
-  description: "AI-powered PostHog dashboard builder. Configure your keys, select insights, and let AI build your dashboard.",
+  title: "Fynd - Growth",
+  description: "AI-powered PostHog growth dashboard builder. Configure your keys, select insights, and let AI build your dashboard.",
 };
 
 export default function RootLayout({
