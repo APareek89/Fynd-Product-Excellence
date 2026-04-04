@@ -5,7 +5,7 @@ import { CUSTOM_QUERY_SYSTEM_PROMPT } from "@/lib/system-prompts";
 import type { LLMProvider, CustomQueryScope, CustomQueryResult } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 type RequestBody = {
   posthogApiKey: string;

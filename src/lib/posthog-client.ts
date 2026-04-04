@@ -50,31 +50,27 @@ export async function listProjects(apiKey: string, posthogHost?: string): Promis
   return [{ id: project.id, name: project.name, uuid: project.uuid }];
 }
 
-// ---- Fetch event definitions (paginated) ----
+// ---- Fetch event definitions (single page, sorted by volume) ----
 export async function fetchEventDefinitions(
   apiKey: string,
   projectId: string,
   posthogHost?: string,
 ): Promise<EventDefinition[]> {
   const base = host(posthogHost);
-  const allEvents: EventDefinition[] = [];
-  let url: string | null = `${base}/api/projects/${projectId}/event_definitions/?limit=200`;
-
-  while (url) {
-    const res = await fetch(url, { headers: headers(apiKey) });
-    if (!res.ok) {
-      const t = await res.text();
-      throw new Error(`PostHog events: ${res.status} ${t}`);
-    }
-    const page = (await res.json()) as { results: EventDefinition[]; next: string | null };
-    allEvents.push(...page.results);
-    url = page.next;
+  // Fetch only first page (200 events) — enough for LLM context
+  const res = await fetch(`${base}/api/projects/${projectId}/event_definitions/?limit=200`, {
+    headers: headers(apiKey),
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(`PostHog events: ${res.status} ${t.slice(0, 200)}`);
   }
-
-  return allEvents;
+  const page = (await res.json()) as { results: EventDefinition[] };
+  return page.results ?? [];
 }
 
-// ---- Fetch property definitions (paginated) ----
+// ---- Fetch property definitions (single page) ----
 export async function fetchPropertyDefinitions(
   apiKey: string,
   projectId: string,
@@ -82,18 +78,17 @@ export async function fetchPropertyDefinitions(
   type: "event" | "person" = "event",
 ): Promise<PropertyDefinition[]> {
   const base = host(posthogHost);
-  const allProps: PropertyDefinition[] = [];
-  let url: string | null = `${base}/api/projects/${projectId}/property_definitions/?limit=200&type=${type}`;
-
-  while (url) {
-    const res = await fetch(url, { headers: headers(apiKey) });
-    if (!res.ok) break; // non-critical
-    const page = (await res.json()) as { results: PropertyDefinition[]; next: string | null };
-    allProps.push(...page.results);
-    url = page.next;
+  try {
+    const res = await fetch(`${base}/api/projects/${projectId}/property_definitions/?limit=100&type=${type}`, {
+      headers: headers(apiKey),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return [];
+    const page = (await res.json()) as { results: PropertyDefinition[] };
+    return page.results ?? [];
+  } catch {
+    return []; // non-critical
   }
-
-  return allProps;
 }
 
 // ---- Run HogQL query ----

@@ -26,6 +26,43 @@ async function safeJsonFetch(res: Response) {
   }
 }
 
+// Fetch with retry (handles timeouts and 5xx)
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  maxRetries = 2,
+): Promise<Response> {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(url, { ...init, signal: AbortSignal.timeout(240_000) });
+      // Retry on server errors
+      if (res.status >= 500 && attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, 3000 * (attempt + 1)));
+        continue;
+      }
+      return res;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, 3000 * (attempt + 1)));
+        continue;
+      }
+    }
+  }
+  throw lastError ?? new Error("Request failed after retries");
+}
+
+// Wrapper that does fetch + safe JSON parse + retry
+async function apiCall(url: string, body: unknown) {
+  const res = await fetchWithRetry(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return safeJsonFetch(res);
+}
+
 export default function Home() {
   const [step, setStep] = useState<AppStep>("setup");
   const [config, setConfig] = useState<SetupConfig | null>(null);
@@ -107,38 +144,28 @@ export default function Home() {
     try {
       // Call 1: Agent 1 — Discovery (fetch PostHog data + LLM discovery)
       setLoadingMessage("Agent 1: Discovering events, properties, and business logic...");
-      const discoverRes = await fetch("/api/analyze-discover", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          posthogApiKey: cfg.posthogApiKey,
-          posthogHost: cfg.posthogHost,
-          projectId: cfg.projectId,
-          projectName: cfg.projectName,
-          llmProvider: cfg.llmProvider,
-          llmApiKey: cfg.llmApiKey,
-        }),
+      const discoverData = await apiCall("/api/analyze-discover", {
+        posthogApiKey: cfg.posthogApiKey,
+        posthogHost: cfg.posthogHost,
+        projectId: cfg.projectId,
+        projectName: cfg.projectName,
+        llmProvider: cfg.llmProvider,
+        llmApiKey: cfg.llmApiKey,
       });
-      const discoverData = await safeJsonFetch(discoverRes);
       if (discoverData.error) throw new Error(discoverData.error);
 
       // Call 2: Agent 2 — Architect (design KPIs with L1/L2/L3 depth)
       setLoadingMessage("Agent 2: Designing KPIs with L1/L2/L3 depth...");
-      const architectRes = await fetch("/api/analyze-architect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          llmProvider: cfg.llmProvider,
-          llmApiKey: cfg.llmApiKey,
-          discoveryContext: discoverData.discoveryContext,
-          dashboardTypes: cfg.dashboardTypes,
-          otherDescription: cfg.otherDescription,
-          objective: cfg.objective,
-          agentRecommendations: cfg.agentRecommendations,
-          specificInsights: cfg.specificInsights,
-        }),
+      const architectData = await apiCall("/api/analyze-architect", {
+        llmProvider: cfg.llmProvider,
+        llmApiKey: cfg.llmApiKey,
+        discoveryContext: discoverData.discoveryContext,
+        dashboardTypes: cfg.dashboardTypes,
+        otherDescription: cfg.otherDescription,
+        objective: cfg.objective,
+        agentRecommendations: cfg.agentRecommendations,
+        specificInsights: cfg.specificInsights,
       });
-      const architectData = await safeJsonFetch(architectRes);
       if (architectData.error) throw new Error(architectData.error);
       if (!architectData.plan) throw new Error("No plan returned");
 
@@ -161,22 +188,17 @@ export default function Home() {
     try {
       // Re-discover if needed, but for feedback we can skip Agent 1
       // and just re-run Agent 2 with feedback
-      const res = await fetch("/api/analyze-architect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          llmProvider: config.llmProvider,
-          llmApiKey: config.llmApiKey,
-          discoveryContext: "Use the same project context as before. The user is providing feedback on the KPI plan.",
-          dashboardTypes: config.dashboardTypes,
-          otherDescription: config.otherDescription,
-          objective: config.objective,
-          agentRecommendations: config.agentRecommendations,
-          specificInsights: config.specificInsights,
-          feedback,
-        }),
+      const data = await apiCall("/api/analyze-architect", {
+        llmProvider: config.llmProvider,
+        llmApiKey: config.llmApiKey,
+        discoveryContext: "Use the same project context as before. The user is providing feedback on the KPI plan.",
+        dashboardTypes: config.dashboardTypes,
+        otherDescription: config.otherDescription,
+        objective: config.objective,
+        agentRecommendations: config.agentRecommendations,
+        specificInsights: config.specificInsights,
+        feedback,
       });
-      const data = await safeJsonFetch(res);
       if (data.error) throw new Error(data.error);
       if (!data.plan) throw new Error("No plan returned");
       setPlan(data.plan);
@@ -197,27 +219,17 @@ export default function Home() {
     try {
       // Call 1: Generate queries + execute them
       setLoadingMessage("Agent 3: Generating HogQL queries and fetching data...");
-      const queryRes = await fetch("/api/build-queries", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...config, plan: confirmedPlan, preset: "7d", comparePreset: "7d" }),
-      });
-      const queryData = await safeJsonFetch(queryRes);
+      const queryData = await apiCall("/api/build-queries", { ...config, plan: confirmedPlan, preset: "7d", comparePreset: "7d" });
       if (queryData.error) throw new Error(queryData.error);
 
       // Call 2: Populate dashboard with real results
       setLoadingMessage("Agent 3: Populating dashboard with real data...");
-      const popRes = await fetch("/api/build-populate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          llmProvider: config.llmProvider,
-          llmApiKey: config.llmApiKey,
-          dashboard: queryData.dashboard,
-          queryResults: queryData.queryResults,
-        }),
+      const popData = await apiCall("/api/build-populate", {
+        llmProvider: config.llmProvider,
+        llmApiKey: config.llmApiKey,
+        dashboard: queryData.dashboard,
+        queryResults: queryData.queryResults,
       });
-      const popData = await safeJsonFetch(popRes);
       if (popData.error) throw new Error(popData.error);
       if (!popData.dashboard) throw new Error("No dashboard returned");
 
@@ -243,26 +255,16 @@ export default function Home() {
 
     try {
       setLoadingMessage("Regenerating queries...");
-      const queryRes = await fetch("/api/build-queries", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...config, plan, preset, comparePreset, from, to, compareFrom, compareTo }),
-      });
-      const queryData = await safeJsonFetch(queryRes);
+      const queryData = await apiCall("/api/build-queries", { ...config, plan, preset, comparePreset, from, to, compareFrom, compareTo });
       if (queryData.error) throw new Error(queryData.error);
 
       setLoadingMessage("Populating dashboard...");
-      const popRes = await fetch("/api/build-populate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          llmProvider: config.llmProvider,
-          llmApiKey: config.llmApiKey,
-          dashboard: queryData.dashboard,
-          queryResults: queryData.queryResults,
-        }),
+      const popData = await apiCall("/api/build-populate", {
+        llmProvider: config.llmProvider,
+        llmApiKey: config.llmApiKey,
+        dashboard: queryData.dashboard,
+        queryResults: queryData.queryResults,
       });
-      const popData = await safeJsonFetch(popRes);
       if (popData.error) throw new Error(popData.error);
 
       setDashboard(popData.dashboard);

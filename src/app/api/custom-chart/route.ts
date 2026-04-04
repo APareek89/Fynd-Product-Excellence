@@ -3,7 +3,7 @@ import { runHogQL } from "@/lib/posthog-client";
 import type { ChartEventEntry, ChartFrequency, ChartPropertyFilter, ChartTimePeriod } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 type RequestBody = {
   posthogApiKey: string;

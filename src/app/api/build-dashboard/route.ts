@@ -6,7 +6,7 @@ import { resolveComparison } from "@/lib/date-range";
 import type { LLMProvider, KPIPlan, DatePreset, DashboardPayload } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 type RequestBody = {
   posthogApiKey: string;

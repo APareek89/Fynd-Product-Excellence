@@ -13,7 +13,7 @@ import { AGENT_1_DISCOVERY_PROMPT, AGENT_2_ARCHITECT_PROMPT } from "@/lib/system
 import type { LLMProvider, DashboardType, SpecificInsight, KPIPlan } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 type RequestBody = {
   posthogApiKey: string;

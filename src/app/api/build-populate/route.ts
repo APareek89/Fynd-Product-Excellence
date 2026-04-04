@@ -3,7 +3,7 @@ import { callLLM } from "@/lib/llm-client";
 import type { LLMProvider, DashboardPayload } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 type RequestBody = {
   llmProvider: LLMProvider;

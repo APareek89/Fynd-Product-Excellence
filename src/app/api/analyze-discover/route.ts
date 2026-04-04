@@ -13,7 +13,7 @@ import { AGENT_1_DISCOVERY_PROMPT } from "@/lib/system-prompts";
 import type { LLMProvider } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 type RequestBody = {
   posthogApiKey: string;
